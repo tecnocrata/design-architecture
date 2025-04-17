@@ -23,4 +23,15 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 RUN pip3 install jupyter notebook ipykernel matplotlib numpy pandas
 
 # Add PATH for dotnet tools
-ENV PATH="$PATH:/root/.dotnet/tools" 
+ENV PATH="$PATH:/root/.dotnet/tools"
+
+# --- IJavaScript Installation ---
+# Install dependencies for IJavaScript
+RUN apt-get update && apt-get install -y libzmq3-dev --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install IJavaScript (Note: May have issues on ARM64)
+# Ensure Node.js/npm is installed before this step
+RUN npm install -g ijavascript \
+    && ijsinstall --install=global
+# --- End IJavaScript Installation ---

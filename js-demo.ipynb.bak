@@ -1,21 +1,16 @@
 {
  "cells": [
   {
-   "cell_type": "markdown",
-   "metadata": {},
-   "source": []
-  },
-  {
    "cell_type": "code",
    "execution_count": null,
    "metadata": {
     "vscode": {
-     "languageId": "csharp"
+     "languageId": "javascript"
     }
    },
    "outputs": [],
    "source": [
-    "Console.WriteLine(\"Hello from C#!\");"
+    "console.log(\"Hello, world!\");"
    ]
   }
  ],
