@@ -33,5 +33,7 @@ RUN apt-get update && apt-get install -y libzmq3-dev --no-install-recommends \
 # Install IJavaScript (Note: May have issues on ARM64)
 # Ensure Node.js/npm is installed before this step
 RUN npm install -g ijavascript \
-    && ijsinstall --install=global
+    && ijsinstall --install=global \
+    npm install -g tslab \
+    && tslab install
 # --- End IJavaScript Installation ---
