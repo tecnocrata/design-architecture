@@ -34,6 +34,6 @@ RUN apt-get update && apt-get install -y libzmq3-dev --no-install-recommends \
 # Ensure Node.js/npm is installed before this step
 RUN npm install -g ijavascript \
     && ijsinstall --install=global \
-    npm install -g tslab \
+    && npm install -g tslab \
     && tslab install
 # --- End IJavaScript Installation ---
