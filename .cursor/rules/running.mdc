@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+- When you identify a change is needed in an ipynb (notebook) file, please update it instead of creating a new one.
+- When you create or edit an ipynb (notebook) file, ensure it is not empty or its content was deleted.
