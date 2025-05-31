@@ -1,3 +1,73 @@
-Semantic Kernel is a lightweight, open-source development kit that lets you easily build AI agents and integrate the latest AI models into your C#, Python, or Java codebase. It serves as an efficient middleware that enables rapid delivery of enterprise-grade solutions.
- Semantic Kernel is a new AI SDK, and a simple and yet powerful programming model that lets you add large language capabilities to your app in just a matter of minutes. It uses natural language prompting to create and execute semantic kernel AI tasks across multiple languages and platforms.
-In this guide, you learned how to quickly get started with Semantic Kernel by building a simple AI agent that can interact with an AI service and run your code. To see more examples and learn how to build more complex AI agents, check out our in-depth samples.
+Title: The Shawshank Redemption (1994)
+Movie Code: MOV-001
+
+Description:
+Adapted from Stephen King’s novella, Rita Hayworth and Shawshank Redemption, this film chronicles the life of Andy Dufresne, a banker wrongly convicted of murdering his wife and her lover. Andy finds himself in the brutal environment of Shawshank Prison, where he befriends fellow inmate Red. Over two decades, Andy faces despair, abuse, and corruption, but his hope and resilience inspire those around him. Ultimately, the film is a profound examination of friendship, perseverance, and the human spirit’s unbreakable will to seek freedom, making it a timeless masterpiece praised for its emotional depth and powerful storytelling.
+
+Actors:
+	•	Tim Robbins (Andy Dufresne)
+	•	Morgan Freeman (Ellis Boyd “Red” Redding)
+	•	Bob Gunton (Warden Norton)
+	•	William Sadler (Heywood)
+
+⸻
+
+Title: The Godfather (1972)
+Movie Code: MOV-002
+
+Description:
+Francis Ford Coppola’s iconic crime epic, based on Mario Puzo’s novel, delves into the compelling saga of the Corleone crime family. It portrays the patriarch, Vito Corleone, whose power and influence permeate the underworld of post-war America. Following a failed assassination attempt on Vito, his reluctant son, Michael, gradually becomes deeply involved in the family’s criminal enterprise, evolving from an outsider into a ruthless mafia leader. With masterful direction and unforgettable performances, the film explores themes of family, power, loyalty, and corruption. It’s universally acclaimed as one of cinema’s greatest achievements.
+
+Actors:
+	•	Marlon Brando (Vito Corleone)
+	•	Al Pacino (Michael Corleone)
+	•	James Caan (Sonny Corleone)
+	•	Robert Duvall (Tom Hagen)
+	•	Diane Keaton (Kay Adams)
+
+⸻
+
+Title: Inception (2010)
+Movie Code: MOV-003
+
+Description:
+Christopher Nolan’s groundbreaking sci-fi thriller follows Dom Cobb, an expert thief who specializes in entering people’s subconscious minds through their dreams to steal valuable secrets. Offered a chance at redemption, Cobb accepts an almost impossible task—planting an idea rather than extracting one, known as inception. He assembles a skilled team, plunging into multiple layers of dreams within dreams, each progressively more dangerous. With breathtaking visual effects and complex narrative structures, Inception explores reality’s fluid boundaries and delves deep into the psychological and emotional realms of guilt, grief, and the pursuit of redemption.
+
+Actors:
+	•	Leonardo DiCaprio (Dom Cobb)
+	•	Joseph Gordon-Levitt (Arthur)
+	•	Ellen Page (Ariadne)
+	•	Tom Hardy (Eames)
+	•	Ken Watanabe (Saito)
+
+⸻
+
+Title: Interstellar (2014)
+Movie Code: MOV-004
+
+Description:
+Set in a future where Earth is becoming uninhabitable, Christopher Nolan’s visionary film follows Cooper, a former NASA pilot, who leads a mission through a newly discovered wormhole near Saturn, searching for a new planet suitable for humanity’s survival. The epic journey across galaxies tests human limits, exploring profound themes of love, sacrifice, and the relativity of time. Visually stunning, scientifically imaginative, and emotionally powerful, Interstellar is an ambitious masterpiece that deeply contemplates humanity’s place in the universe and the enduring bonds between loved ones.
+
+Actors:
+	•	Matthew McConaughey (Joseph Cooper)
+	•	Anne Hathaway (Dr. Amelia Brand)
+	•	Jessica Chastain (Murphy Cooper)
+	•	Michael Caine (Professor Brand)
+	•	Mackenzie Foy (Young Murphy Cooper)
+
+⸻
+
+Title: Parasite (2019)
+Movie Code: MOV-005
+
+Description:
+Bong Joon-ho’s genre-defying social satire portrays the Kim family, living in poverty, who cunningly infiltrate the lives of the affluent Park family. Initially comedic, the narrative spirals into tense drama as class divisions and family secrets begin to surface, culminating in an explosive climax. Masterfully directed and deeply symbolic, Parasite offers incisive social commentary on economic disparity, social mobility, and human morality. Its blend of dark humor, gripping tension, and sharp critique won it multiple accolades, including becoming the first non-English-language film to win the Academy Award for Best Picture.
+
+Actors:
+	•	Song Kang-ho (Kim Ki-taek)
+	•	Lee Sun-kyun (Park Dong-ik)
+	•	Cho Yeo-jeong (Yeon-kyo)
+	•	Choi Woo-shik (Kim Ki-woo)
+	•	Park So-dam (Kim Ki-jung)
+
+⸻
