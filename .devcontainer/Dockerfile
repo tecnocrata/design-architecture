@@ -15,7 +15,7 @@ RUN wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-p
     && dpkg -i packages-microsoft-prod.deb \
     && rm packages-microsoft-prod.deb \
     && apt-get update \
-    && apt-get -y install --no-install-recommends dotnet-sdk-7.0 \
+    && apt-get -y install --no-install-recommends dotnet-sdk-9.0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js
@@ -34,6 +34,10 @@ ENV PATH="$PATH:/root/.dotnet/tools"
 RUN npm install -g ijavascript tslab \
     && ijsinstall --install=global \
     && tslab install
+
+# Install IJavaScript
+# RUN dotnet tool install --global Microsoft.dotnet-try --version 1.0.20474.1 \
+#     && dotnet try jupyter install
 
 # Set default shell
 SHELL ["/bin/bash", "-c"]
