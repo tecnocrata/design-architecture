@@ -1,4 +1,4 @@
-Title: The Shawshank Redemption (1994)
+Movie Title: The Shawshank Redemption (1994)
 Movie Code: MOV-001
 
 Description:
@@ -10,9 +10,9 @@ Actors:
 	•	Bob Gunton (Warden Norton)
 	•	William Sadler (Heywood)
 
-⸻
+---
 
-Title: The Godfather (1972)
+Movie Title: The Godfather (1972)
 Movie Code: MOV-002
 
 Description:
@@ -25,9 +25,9 @@ Actors:
 	•	Robert Duvall (Tom Hagen)
 	•	Diane Keaton (Kay Adams)
 
-⸻
+---
 
-Title: Inception (2010)
+Movie Title: Inception (2010)
 Movie Code: MOV-003
 
 Description:
@@ -40,9 +40,9 @@ Actors:
 	•	Tom Hardy (Eames)
 	•	Ken Watanabe (Saito)
 
-⸻
+---
 
-Title: Interstellar (2014)
+Movie Title: Interstellar (2014)
 Movie Code: MOV-004
 
 Description:
@@ -55,9 +55,9 @@ Actors:
 	•	Michael Caine (Professor Brand)
 	•	Mackenzie Foy (Young Murphy Cooper)
 
-⸻
+---
 
-Title: Parasite (2019)
+Movie Title: Parasite (2019)
 Movie Code: MOV-005
 
 Description:
@@ -70,4 +70,4 @@ Actors:
 	•	Choi Woo-shik (Kim Ki-woo)
 	•	Park So-dam (Kim Ki-jung)
 
-⸻
+---
