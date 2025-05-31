@@ -5,3 +5,5 @@ openai
 python-dotenv 
 chromadb
 tiktoken
+langchain_core
+langgraph.checkpoint
