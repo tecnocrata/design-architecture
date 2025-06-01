@@ -7,3 +7,4 @@ chromadb
 tiktoken
 langchain_core
 langgraph.checkpoint
+pypdf
