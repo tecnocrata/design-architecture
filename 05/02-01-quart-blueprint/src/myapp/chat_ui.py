@@ -1,26 +1,16 @@
-from quart import Quart, jsonify, redirect, render_template, request, url_for
+from quart import Blueprint, jsonify, redirect, render_template, request, url_for
 
-app = Quart(__name__)
-
-
-# ---------- REST endpoint ----------
-@app.get("/api/hello")
-async def hello_api():
-    """
-    Simple JSON endpoint:
-    GET /api/hello  ->  {"message": "Hello from Quart!"}
-    """
-    return jsonify({"message": "Hello from Quart!"})
+chat_ui_bp = Blueprint("chat_ui", __name__, template_folder="templates", static_folder="static") #, url_prefix="/api"
 
 
 # ---------- HTML form ----------
-@app.get("/")
+@chat_ui_bp.get("/")
 async def index_get():
     # Render the form page
     return await render_template("index.html")
 
 
-@app.post("/submit")
+@chat_ui_bp.post("/submit")
 async def handle_submit():
     """
     Receives form submission from / (index.html).
@@ -35,9 +25,3 @@ async def handle_submit():
         "<p>Your form was successfully submitted.</p>"
         '<p><a href="/">Go back</a></p>'
     )
-
-
-if __name__ == "__main__":
-    # Run with: python app.py   (good for quick dev)
-    # For production use `hypercorn app:app`
-    app.run(debug=True, port=8000)   # Quart’s built-in dev server

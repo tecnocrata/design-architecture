@@ -14,9 +14,10 @@ def create_app():
         logging.basicConfig(level=logging.INFO)
 
     from . import chat_api
-    # from . import chat_ui
+    from . import chat_ui
     app = Quart(__name__)
 
     app.register_blueprint(chat_api.chat_api_bp)
+    app.register_blueprint(chat_ui.chat_ui_bp)
 
     return app

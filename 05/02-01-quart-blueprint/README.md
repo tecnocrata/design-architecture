@@ -17,3 +17,4 @@ gunicorn --config gunicorn.conf.py "myapp:create_app()"
 
 - app.py splitted into two api and ui files
 - blueprint used for concern separation
+- template needs to refer to the module (chat_ui)
