@@ -14,3 +14,6 @@ gunicorn --config gunicorn.conf.py "myapp:create_app()"
 ```
 
 ## Changes
+- docker ignore file created
+- dockerfile created
+- uvicorn added
