@@ -12,3 +12,8 @@ For production mode
 ```bash
 gunicorn --config gunicorn.conf.py "myapp:create_app()"
 ```
+
+## Changes
+
+- app.py splitted into two api and ui files
+- blueprint used for concern separation
