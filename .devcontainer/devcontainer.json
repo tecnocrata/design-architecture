@@ -3,6 +3,7 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
+  "forwardPorts": [8000, 50505],
   "features": {
     "ghcr.io/devcontainers/features/dotnet:1": {
       "version": "latest"

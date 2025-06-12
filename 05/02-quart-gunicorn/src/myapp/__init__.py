@@ -2,7 +2,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from quart import Quart
+# from quart import Quart
 
 
 def create_app():
@@ -13,10 +13,9 @@ def create_app():
     else:
         logging.basicConfig(level=logging.INFO)
 
-    app = Quart(__name__)
-
-    from . import app  # noqa
+    # app = Quart(__name__)
 
     # app.register_blueprint(app.bp)
+    from .app import app  # Import the app instance from src/myapp/app.py
 
     return app
