@@ -13,6 +13,9 @@ def create_app():
     else:
         logging.basicConfig(level=logging.INFO)
 
+    # app = Quart(__name__)
+
+    # app.register_blueprint(app.bp)
     from .app import app  # Import the app instance from src/myapp/app.py
 
     return app

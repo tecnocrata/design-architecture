@@ -35,3 +35,9 @@ async def handle_submit():
         "<p>Your form was successfully submitted.</p>"
         '<p><a href="/">Go back</a></p>'
     )
+
+
+if __name__ == "__main__":
+    # Run with: python app.py   (good for quick dev)
+    # For production use `hypercorn app:app`
+    app.run(debug=True, port=8000)   # Quart’s built-in dev server
