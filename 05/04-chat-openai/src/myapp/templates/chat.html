@@ -63,12 +63,12 @@
                         </div>
                         {% endif %}
 
-                        <label for="message" class="form-label bi" style="color:white">Ask question{% if show_multimodal_features %} about image{% endif %}:</label>
+                        <label for="message" class="form-label bi">Ask question{% if show_multimodal_features %} about image{% endif %}:</label>
                         <div class="input-group">
                             {% if show_multimodal_features %}
                             <speech-input-button></speech-input-button>
                             {% endif %}
-                            <input id="message" name="message" class="form-control form-control-sm" type="text" rows="1" placeholder="<Your Message>" aria-label="Ask ChatGPT"></input>
+                            <input id="message" name="message" class="form-control form-control-sm" type="text" rows="1" placeholder="Type your message..." aria-label="Ask ChatGPT"></input>
                             <button type="submit" class="btn btn-primary">
                                 Send
                                 <i class="bi bi-send-fill" aria-hidden="true"></i>
