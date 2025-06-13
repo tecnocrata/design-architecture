@@ -24,3 +24,4 @@ gunicorn --config gunicorn.conf.py "myapp:create_app()"
 ## Design discussion
 - in-memory server side storage
 - complexity added
+- AIChatProtocolClient has no updates since 2024
