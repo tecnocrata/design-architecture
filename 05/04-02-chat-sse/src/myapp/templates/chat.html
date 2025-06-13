@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="">
-    <title>GPT-4o chat</title>
+    <title>Chat Demo</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css"
         integrity="sha384-KK94CHFLLe+nY2dmCWGMq91rCGa5gtU4mk92HdvYe+M/SXH301p5ILy+dN9+nJOZ" crossorigin="anonymous">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css"
@@ -90,7 +90,6 @@
         </div>
     </main>
     <script src="https://cdn.jsdelivr.net/npm/showdown@2.1.0/dist/showdown.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@microsoft/ai-chat-protocol@1.0.0-beta.20240814.1/dist/iife/index.js"></script>
     <script src="/static/speech-input.js?v=2"></script>
     <script src="/static/speech-output.js?v=2"></script>
     <script>
@@ -104,6 +103,7 @@
             const messages = [];
             const showMultimodalFeatures = {{ show_multimodal_features|tojson }};
             let currentConversationId = null;
+            let currentEventSource = null;
 
             const toBase64 = file => new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -111,8 +111,6 @@
                 reader.onload = () => resolve(reader.result);
                 reader.onerror = reject;
             });
-
-            const client = new ChatProtocol.AIChatProtocolClient("/chat"); // DON'T ADD /stream because AIChatProtocolClient will add it automatically
 
             const fileInput = document.getElementById("file"); // Might be null if not rendered
             const imagePreview = document.getElementById("image-preview"); // Might be null if not rendered
@@ -238,61 +236,98 @@
 
                 try {
                     messageDiv.scrollIntoView();
-                    const result = await client.getStreamedCompletion(messages, {
-                        sessionState: { conversation_id: currentConversationId },
-                        context: {
-                            file: fileData, 
-                            file_name: (fileData && file) ? file.name : null
-                        }
+
+                    // Close any existing EventSource
+                    if (currentEventSource) {
+                        currentEventSource.close();
+                    }
+
+                    // First, send the POST request with the message
+                    const response = await fetch('/chat/stream', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            messages: messages,
+                            sessionState: { conversation_id: currentConversationId },
+                            context: {
+                                file: fileData,
+                                file_name: (fileData && file) ? file.name : null
+                            }
+                        })
                     });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    // Then, create the EventSource connection
+                    const eventSource = new EventSource(`/chat/stream?conversation_id=${currentConversationId}`);
+                    currentEventSource = eventSource;
 
                     let answer = "";
                     let firstChunkReceived = false;
 
-                    for await (const chunk of result) { 
-                        if (!firstChunkReceived) {
-                            messageDiv.innerHTML = ""; 
-                            firstChunkReceived = true;
+                    // Handle SSE events
+                    eventSource.onmessage = function(event) {
+                        const data = JSON.parse(event.data);
+                        
+                        if (data.error) {
+                            messageDiv.innerHTML = `<div class="text-danger">Error: ${data.error}</div>`;
+                            eventSource.close();
+                            return;
                         }
 
-                        if (chunk.error) {
-                            let errorMessage = "Error: ";
-                            if (typeof chunk.error === 'string') {
-                                errorMessage += chunk.error;
-                            } else if (chunk.error.message) {
-                                errorMessage += chunk.error.message;
-                            } else {
-                                errorMessage += JSON.stringify(chunk.error);
-                            }
-                            messageDiv.innerHTML = converter.makeHtml(errorMessage);
-                            console.error("Error from stream:", chunk.error);
-                            break; 
-                        }
-
-                        if (chunk.choices && chunk.choices.length > 0) {
-                            const delta = chunk.choices[0].delta;
-                            if (delta && delta.content) {
+                        if (data.choices && data.choices[0].delta) {
+                            const delta = data.choices[0].delta;
+                            if (delta.content) {
+                                if (!firstChunkReceived) {
+                                    messageDiv.innerHTML = '';
+                                    firstChunkReceived = true;
+                                }
                                 answer += delta.content;
-                                messageDiv.innerHTML = converter.makeHtml(answer); 
+                                messageDiv.innerHTML = converter.makeHtml(answer);
                                 messageDiv.scrollIntoView();
                             }
                         }
+                    };
+
+                    eventSource.onerror = function(error) {
+                        console.error('EventSource failed:', error);
+                        eventSource.close();
+                        if (!firstChunkReceived) {
+                            messageDiv.innerHTML = '<div class="text-danger">Error: Failed to connect to the server</div>';
+                        }
+                    };
+
+                    // Clear the input and file
+                    messageInput.value = '';
+                    if (fileInput) {
+                        fileInput.value = '';
                     }
+                    if (imagePreview) {
+                        imagePreview.style.display = 'none';
+                    }
+
+                    // Add the assistant's message to the conversation history
                     messages.push({
                         "role": "assistant",
                         "content": answer
                     });
 
-                    messageInput.value = "";
-
-                    if (showMultimodalFeatures) { 
+                    // Add speech output if multimodal features are enabled
+                    if (showMultimodalFeatures) {
                         const speechOutput = document.createElement("speech-output-button");
                         speechOutput.setAttribute("text", answer);
                         messageDiv.appendChild(speechOutput);
                     }
+
                     messageInput.focus();
+
                 } catch (error) {
-                    messageDiv.innerHTML = "Error: " + error;
+                    console.error('Error:', error);
+                    messageDiv.innerHTML = `<div class="text-danger">Error: ${error.message}</div>`;
                 }
             });
 
