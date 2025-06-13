@@ -1,0 +1,57 @@
+# For use with VS Code REST Client extension or similar tools.
+# Assumes the Quart app is running on http://localhost:50505
+
+# @name getHello
+GET http://localhost:50505/api/hello
+
+###
+
+# @name postChatNonStreaming
+POST http://localhost:50505/api/chat
+Content-Type: application/json
+
+{
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello! What is the capital of France?"}
+  ],
+  "temperature": 0.7
+}
+
+###
+
+# @name postChatStreaming
+POST http://localhost:50505/api/chat-stream
+Content-Type: application/json
+
+{
+  "messages": [
+    {"role": "system", "content": "You are a concise assistant."},
+    {"role": "user", "content": "Tell me a very short story about a robot."}
+  ],
+  "temperature": 0.8
+}
+
+###
+
+# @name postChatNonStreamingErrorNoMessages
+POST http://localhost:50505/api/chat
+Content-Type: application/json
+
+{
+  "temperature": 0.7
+}
+
+###
+
+# @name postChatStreamingErrorInvalidJson
+POST http://localhost:50505/api/chat-stream
+Content-Type: application/json
+
+{
+  "messages": [
+    {"role": "user", "content": "This is a test"}
+  ],
+  "temperature": 0.8
+# Missing closing brace for invalid JSON test
+# }
