@@ -268,13 +268,19 @@
 
                     let answer = "";
                     let firstChunkReceived = false;
+                    let isConnectionClosed = false;
 
                     // Handle SSE events
+                    eventSource.onopen = function() {
+                        console.log('SSE connection opened');
+                    };
+
                     eventSource.onmessage = function(event) {
                         const data = JSON.parse(event.data);
                         
                         if (data.error) {
                             messageDiv.innerHTML = `<div class="text-danger">Error: ${data.error}</div>`;
+                            isConnectionClosed = true;
                             eventSource.close();
                             return;
                         }
@@ -290,15 +296,24 @@
                                 messageDiv.innerHTML = converter.makeHtml(answer);
                                 messageDiv.scrollIntoView();
                             }
+
+                            // Check if this is the last message
+                            if (data.choices[0].finish_reason) {
+                                isConnectionClosed = true;
+                                eventSource.close();
+                            }
                         }
                     };
 
                     eventSource.onerror = function(error) {
-                        console.error('EventSource failed:', error);
-                        eventSource.close();
-                        if (!firstChunkReceived) {
-                            messageDiv.innerHTML = '<div class="text-danger">Error: Failed to connect to the server</div>';
+                        // Only show error if we haven't intentionally closed the connection
+                        if (!isConnectionClosed) {
+                            console.error('EventSource failed:', error);
+                            if (!firstChunkReceived) {
+                                messageDiv.innerHTML = '<div class="text-danger">Error: Failed to connect to the server</div>';
+                            }
                         }
+                        eventSource.close();
                     };
 
                     // Clear the input and file

@@ -169,6 +169,9 @@ async def chat_handler():
                     delta = event_dict["choices"][0].get("delta", {})
                     if delta.get("content"):
                         full_response += delta["content"]
+                    # Add finish_reason to the last event
+                    if event_dict["choices"][0].get("finish_reason"):
+                        event_dict["choices"][0]["finish_reason"] = event_dict["choices"][0]["finish_reason"]
                     yield f"data: {json.dumps(event_dict, ensure_ascii=False)}\n\n"
                 elif event_dict.get("error"):
                     logger.error(f"OpenAI API streamed an error: {event_dict['error']}")
@@ -177,6 +180,9 @@ async def chat_handler():
             # Store the complete assistant's reply after streaming is done
             if full_response and request.method == "POST":
                 await storage.add_message(conversation_id, "assistant", full_response)
+
+            # Send a final event to signal completion
+            yield f"data: {json.dumps({'event': 'complete'}, ensure_ascii=False)}\n\n"
 
         except Exception as e:
             logger.error(f"OpenAI API call failed: {e}", exc_info=True)
