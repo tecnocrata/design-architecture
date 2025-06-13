@@ -13,7 +13,8 @@ class SpeechInputButton extends HTMLElement {
       return;
     }
     this.speechRecognition = new SpeechRecognition();
-    this.speechRecognition.lang = navigator.language || navigator.userLanguage;
+    // Default to 'en-US' for broader compatibility, allow override via attribute if needed later
+    this.speechRecognition.lang = this.getAttribute('lang') || 'en-US';
     this.speechRecognition.interimResults = false;
     this.speechRecognition.continuous = true;
     this.speechRecognition.maxAlternatives = 1;
