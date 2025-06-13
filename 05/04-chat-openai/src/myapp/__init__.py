@@ -18,6 +18,10 @@ def create_app():
     from . import chat_ui
     app = Quart(__name__)
 
+    # Feature flag for multimodal features
+    app.config["SHOW_MULTIMODAL_FEATURES"] = os.getenv("SHOW_MULTIMODAL_FEATURES", "False").lower() == "true"
+    app.logger.info(f'Multimodal features enabled: {app.config["SHOW_MULTIMODAL_FEATURES"]}')
+
     # Register the module-level functions as lifecycle hooks
     # These functions will be called within an app context, so current_app is available.
     app.before_serving(_initialize_openai_resources)

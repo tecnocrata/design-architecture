@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 async def index():
     """Serves the main chat HTML page."""
     logger.info("Serving chat.html")
-    return await render_template("chat.html")
+    show_multimodal_features = current_app.config.get("SHOW_MULTIMODAL_FEATURES", False)
+    return await render_template("chat.html", show_multimodal_features=show_multimodal_features)
 
 
 @chat_ui_bp.post("/chat/stream") # Matches the client-side AIChatProtocolClient endpoint
@@ -71,6 +72,7 @@ async def chat_handler():
     request_messages = request_json.get("messages", [])
     context_data = request_json.get("context", {})
     image_base64_data_uri = context_data.get("file") # Expected to be a data URI (e.g., data:image/png;base64,...)
+    show_multimodal_features = current_app.config.get("SHOW_MULTIMODAL_FEATURES", False)
 
     @stream_with_context
     async def response_stream():
@@ -85,7 +87,7 @@ async def chat_handler():
 
         current_user_message_text = request_messages[-1]["content"] if request_messages else ""
 
-        if image_base64_data_uri:
+        if show_multimodal_features and image_base64_data_uri:
             user_content_parts = [
                 {"type": "text", "text": current_user_message_text}
             ]
