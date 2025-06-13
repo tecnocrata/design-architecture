@@ -14,6 +14,10 @@ gunicorn --config gunicorn.conf.py "myapp:create_app()"
 ```
 
 ## Changes
+- SSE replaces to AIChatProtocolClient
+- chat_ui: It sends the sse data format
+- chat.html: It handles the data Format changes
+
 
 
 ## Design discussion

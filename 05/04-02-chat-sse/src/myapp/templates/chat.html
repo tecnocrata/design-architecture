@@ -300,6 +300,7 @@
                             // Check if this is the last message
                             if (data.choices[0].finish_reason) {
                                 isConnectionClosed = true;
+                                console.log('SSE connection closed by server');
                                 eventSource.close();
                             }
                         }
