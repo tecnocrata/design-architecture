@@ -19,4 +19,8 @@ gunicorn --config gunicorn.conf.py "myapp:create_app()"
 - chat_ui:chat.html added
 - chat_api: non-stream and stream endpoints added
 - python hooks added for openai_client setup
-- chat.http adde
+- chat.http added
+
+## Design discussion
+- client side storage
+- AIChatProtocolClient vs SSE
