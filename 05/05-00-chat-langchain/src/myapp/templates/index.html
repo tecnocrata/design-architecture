@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Quart Form Demo</title>
+  </head>
+  <body>
+    <h1>Quart Form Demo</h1>
+
+    <form method="post" action="{{ url_for('chat_ui.handle_submit') }}">
+      <label for="name">Your name:</label>
+      <input type="text" id="name" name="name" required />
+      <button type="submit">Submit</button>
+    </form>
+  </body>
+</html>
