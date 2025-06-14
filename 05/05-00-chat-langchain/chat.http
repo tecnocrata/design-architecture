@@ -4,53 +4,94 @@
 # @name getHello
 GET http://localhost:50505/api/hello
 
-###
-
-# @name postChatNonStreaming
+### Test the non-streaming chat endpoint
 POST http://localhost:50505/api/chat
 Content-Type: application/json
 
 {
-  "messages": [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "Hello! What is the capital of France?"}
-  ],
-  "temperature": 0.7
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant."
+        },
+        {
+            "role": "user",
+            "content": "Hello! How are you?"
+        }
+    ]
 }
 
-###
-
-# @name postChatStreaming
+### Test the streaming chat endpoint (NDJSON)
 POST http://localhost:50505/api/chat-stream
 Content-Type: application/json
 
 {
-  "messages": [
-    {"role": "system", "content": "You are a concise assistant."},
-    {"role": "user", "content": "Tell me a very short story about a robot."}
-  ],
-  "temperature": 0.8
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant."
+        },
+        {
+            "role": "user",
+            "content": "Tell me a short story about a robot."
+        }
+    ]
 }
 
-###
+### Test the SSE chat endpoint
+POST http://localhost:50505/api/chat-sse
+Content-Type: application/json
 
-# @name postChatNonStreamingErrorNoMessages
+{
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant."
+        },
+        {
+            "role": "user",
+            "content": "Explain quantum computing in simple terms."
+        }
+    ]
+}
+
+### Test with a longer conversation
 POST http://localhost:50505/api/chat
 Content-Type: application/json
 
 {
-  "temperature": 0.7
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are a helpful assistant."
+        },
+        {
+            "role": "user",
+            "content": "What is Python?"
+        },
+        {
+            "role": "assistant",
+            "content": "Python is a high-level, interpreted programming language known for its readability and versatility."
+        },
+        {
+            "role": "user",
+            "content": "What are its main features?"
+        }
+    ]
 }
 
-###
-
-# @name postChatStreamingErrorInvalidJson
-POST http://localhost:50505/api/chat-stream
+### Test error handling with invalid JSON
+POST http://localhost:50505/api/chat
 Content-Type: application/json
 
 {
-  "messages": [
-    {"role": "user", "content": "This is a test"}
-  ],
-  "temperature": 0.8
+    "messages": "invalid"
+}
+
+### Test error handling with missing messages
+POST http://localhost:50505/api/chat
+Content-Type: application/json
+
+{
+    "other_field": "value"
 }

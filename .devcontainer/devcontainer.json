@@ -18,7 +18,8 @@
       "extensions": [
         "ms-python.python",
         "ms-dotnettools.csharp",
-        "ms-toolsai.jupyter"
+        "ms-toolsai.jupyter",
+        "humao.rest-client"
       ]
     }
   }
