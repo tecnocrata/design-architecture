@@ -2,6 +2,7 @@ from quart import Blueprint, jsonify, redirect, render_template, request, url_fo
 import json
 import logging
 import asyncio
+from langchain.schema import HumanMessage, SystemMessage, AIMessage
 
 # Configure a logger for this blueprint
 logger = logging.getLogger(__name__)
@@ -27,11 +28,11 @@ async def handle_chat():
     Expects a JSON body with a "messages" array.
     Returns a JSON response with the assistant's reply.
     """
-    openai_client = getattr(current_app, 'openai_client', None)
+    chat_model = getattr(current_app, 'chat_model', None)
     model_name = getattr(current_app, 'model_name', None)
 
-    if not openai_client or not model_name:
-        logger.error("OpenAI client or model name not configured on current_app for /api/chat.")
+    if not chat_model or not model_name:
+        logger.error("LangChain chat model or model name not configured on current_app for /api/chat.")
         return jsonify({"error": "Server configuration error."}), 500
 
     try:
@@ -50,26 +51,23 @@ async def handle_chat():
     # to maintain conversation history per user.
 
     try:
-        logger.debug(f"Sending to OpenAI (non-stream) for /api/chat: {messages}")
-        completion = await openai_client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            stream=False,
-            temperature=request_json.get("temperature", 0.7),
-        )
-        
-        # Assuming we want to return the content of the first choice's message
-        if completion.choices and completion.choices[0].message:
-            reply_content = completion.choices[0].message.content
-            # For a more complete response, you could return the whole choice or message object
-            # For example: completion.choices[0].message.model_dump()
-            return jsonify({"reply": reply_content})
-        else:
-            logger.error("OpenAI response did not contain expected choices or message for /api/chat.")
-            return jsonify({"error": "Failed to get a valid response from AI."}), 500
+        logger.debug(f"Sending to LangChain (non-stream) for /api/chat: {messages}")
+        # Convert messages to LangChain message format
+        langchain_messages = []
+        for msg in messages:
+            if msg["role"] == "user":
+                langchain_messages.append(HumanMessage(content=msg["content"]))
+            elif msg["role"] == "assistant":
+                langchain_messages.append(AIMessage(content=msg["content"]))
+            elif msg["role"] == "system":
+                langchain_messages.append(SystemMessage(content=msg["content"]))
+
+        # Get response from LangChain
+        response = await chat_model.ainvoke(langchain_messages)
+        return jsonify({"reply": response.content})
 
     except Exception as e:
-        logger.error(f"OpenAI API call failed for /api/chat: {e}", exc_info=True)
+        logger.error(f"LangChain API call failed for /api/chat: {e}", exc_info=True)
         # Be cautious about exposing raw error messages from external services to the client
         return jsonify({"error": "An error occurred while communicating with the AI service."}), 500
 
@@ -82,11 +80,11 @@ async def handle_chat_stream():
     Expects a JSON body with a "messages" array.
     Streams responses back as NDJSON.
     """
-    openai_client = getattr(current_app, 'openai_client', None)
+    chat_model = getattr(current_app, 'chat_model', None)
     model_name = getattr(current_app, 'model_name', None)
 
-    if not openai_client or not model_name:
-        logger.error("OpenAI client or model name not configured on current_app for /api/chat-stream.")
+    if not chat_model or not model_name:
+        logger.error("LangChain chat model or model name not configured on current_app for /api/chat-stream.")
         error_response = {"error": "Server configuration error."}
         return Response(json.dumps(error_response) + "\n", status=500, content_type="application/x-ndjson")
 
@@ -110,23 +108,23 @@ async def handle_chat_stream():
     @stream_with_context
     async def response_stream_generator():
         try:
-            logger.debug(f"Sending to OpenAI (stream) for /api/chat-stream: {messages}")
-            chat_coroutine = openai_client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                stream=True,
-                temperature=request_json.get("temperature", 0.7),
-            )
-            async for event in await chat_coroutine:
-                event_dict = event.model_dump()
-                if event_dict.get("choices"):
-                    yield json.dumps(event_dict, ensure_ascii=False) + "\n"
-                elif event_dict.get("error"):
-                    logger.error(f"OpenAI API streamed an error for /api/chat-stream: {event_dict['error']}")
-                    yield json.dumps({"error": event_dict["error"]}, ensure_ascii=False) + "\n"
-        
+            logger.debug(f"Sending to LangChain (stream) for /api/chat-stream: {messages}")
+            # Convert messages to LangChain message format
+            langchain_messages = []
+            for msg in messages:
+                if msg["role"] == "user":
+                    langchain_messages.append(HumanMessage(content=msg["content"]))
+                elif msg["role"] == "assistant":
+                    langchain_messages.append(AIMessage(content=msg["content"]))
+                elif msg["role"] == "system":
+                    langchain_messages.append(SystemMessage(content=msg["content"]))
+
+            async for chunk in chat_model.astream(langchain_messages):
+                if chunk.content:
+                    yield json.dumps({"choices": [{"delta": {"content": chunk.content}}]}, ensure_ascii=False) + "\n"
+
         except Exception as e:
-            logger.error(f"OpenAI API call failed for /api/chat-stream: {e}", exc_info=True)
+            logger.error(f"LangChain API call failed for /api/chat-stream: {e}", exc_info=True)
             error_payload = {
                 "error": {
                     "message": "An error occurred while communicating with the AI service.",
@@ -146,11 +144,11 @@ async def handle_chat_sse():
     Expects a JSON body with a "messages" array.
     Streams responses back as SSE events.
     """
-    openai_client = getattr(current_app, 'openai_client', None)
+    chat_model = getattr(current_app, 'chat_model', None)
     model_name = getattr(current_app, 'model_name', None)
 
-    if not openai_client or not model_name:
-        logger.error("OpenAI client or model name not configured on current_app for /api/chat-sse.")
+    if not chat_model or not model_name:
+        logger.error("LangChain chat model or model name not configured on current_app for /api/chat-sse.")
         return Response("data: {\"error\": \"Server configuration error.\"}\n\n", 
                        status=500, 
                        content_type="text/event-stream")
@@ -176,28 +174,27 @@ async def handle_chat_sse():
     @stream_with_context
     async def sse_generator():
         try:
-            logger.debug(f"Sending to OpenAI (SSE) for /api/chat-sse: {messages}")
-            chat_coroutine = openai_client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                stream=True,
-                temperature=request_json.get("temperature", 0.7),
-            )
-            
-            async for event in await chat_coroutine:
-                event_dict = event.model_dump()
-                if event_dict.get("choices"):
+            logger.debug(f"Sending to LangChain (SSE) for /api/chat-sse: {messages}")
+            # Convert messages to LangChain message format
+            langchain_messages = []
+            for msg in messages:
+                if msg["role"] == "user":
+                    langchain_messages.append(HumanMessage(content=msg["content"]))
+                elif msg["role"] == "assistant":
+                    langchain_messages.append(AIMessage(content=msg["content"]))
+                elif msg["role"] == "system":
+                    langchain_messages.append(SystemMessage(content=msg["content"]))
+
+            async for chunk in chat_model.astream(langchain_messages):
+                if chunk.content:
                     # Format as SSE event
-                    yield f"data: {json.dumps(event_dict, ensure_ascii=False)}\n\n"
-                elif event_dict.get("error"):
-                    logger.error(f"OpenAI API streamed an error for /api/chat-sse: {event_dict['error']}")
-                    yield f"data: {json.dumps({'error': event_dict['error']}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'choices': [{'delta': {'content': chunk.content}}]}, ensure_ascii=False)}\n\n"
                 
                 # Add a small delay to prevent overwhelming the client
                 await asyncio.sleep(0.01)
         
         except Exception as e:
-            logger.error(f"OpenAI API call failed for /api/chat-sse: {e}", exc_info=True)
+            logger.error(f"LangChain API call failed for /api/chat-sse: {e}", exc_info=True)
             error_payload = {
                 "error": {
                     "message": "An error occurred while communicating with the AI service.",
