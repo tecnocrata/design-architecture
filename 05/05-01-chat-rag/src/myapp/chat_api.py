@@ -5,8 +5,8 @@ import asyncio
 from langchain.schema import HumanMessage, SystemMessage, AIMessage
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.vectorstores import Chroma
+from langchain_openai import OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain_openai import ChatOpenAI
 import os
@@ -30,7 +30,7 @@ def initialize_vector_store():
 
         # Initialize embeddings
         embeddings = OpenAIEmbeddings(
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
+            openai_api_key=os.getenv("OPENAI_KEY"),
             model="text-embedding-3-small"
         )
 
@@ -101,6 +101,8 @@ async def handle_chat():
 
         # Get relevant context from the vector store
         context_response = await qa_chain.ainvoke({"query": last_user_message})
+        if context_response["result"]:
+            print(f"Context response (api: {context_response['result']}")
         
         # Convert messages to LangChain message format
         langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]

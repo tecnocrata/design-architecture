@@ -11,6 +11,13 @@ from quart import (
 )
 from .storage import InMemoryConversationStorage
 from langchain.schema import HumanMessage, SystemMessage, AIMessage
+from langchain_community.document_loaders import TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import Chroma
+from langchain_openai import OpenAIEmbeddings
+from langchain.chains import RetrievalQA
+from langchain_openai import ChatOpenAI
+import os
 from .config import SYSTEM_PROMPT
 
 # Define the Blueprint for the chat UI and API
@@ -24,6 +31,32 @@ logger = logging.getLogger(__name__)
 
 # Initialize storage
 storage = InMemoryConversationStorage()
+
+def initialize_vector_store():
+    """Initialize the vector store with movie data."""
+    try:
+        # Load the movies text file
+        loader = TextLoader("src/myapp/movies.txt", encoding="utf-8")
+        documents = loader.load()
+
+        # Split the text into chunks
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        docs = text_splitter.split_documents(documents)
+
+        # Initialize embeddings
+        embeddings = OpenAIEmbeddings(
+            openai_api_key=os.getenv("OPENAI_KEY"),
+            model="text-embedding-3-small"
+        )
+
+        # Create and return the vector store
+        return Chroma.from_documents(docs, embeddings)
+    except Exception as e:
+        logger.error(f"Error initializing vector store: {e}")
+        return None
+
+# Initialize vector store when the blueprint is created
+vector_store = initialize_vector_store()
 
 @chat_ui_bp.route("/")
 async def index():
@@ -75,6 +108,12 @@ async def chat_handler():
     if not chat_model or not model_name:
         logger.error("LangChain chat model or model name not configured on the current_app.")
         return Response("data: {\"error\": \"Server configuration error.\"}\n\n", 
+                       status=500, 
+                       content_type="text/event-stream")
+
+    if not vector_store:
+        logger.error("Vector store not initialized.")
+        return Response("data: {\"error\": \"Vector store not available.\"}\n\n", 
                        status=500, 
                        content_type="text/event-stream")
 
@@ -155,6 +194,25 @@ async def chat_handler():
         try:
             logger.debug(f"Messages to LangChain: {json.dumps(messages)[:500]}...")
 
+            # Get the last user message
+            last_user_message = next((msg["content"] for msg in reversed(messages) if msg["role"] == "user"), None)
+            if not last_user_message:
+                error_response = {"error": "No user message found in the conversation."}
+                yield f"data: {json.dumps(error_response, ensure_ascii=False)}\n\n"
+                return
+
+            # Create a QA chain with the vector store
+            qa_chain = RetrievalQA.from_chain_type(
+                llm=chat_model,
+                chain_type="stuff",
+                retriever=vector_store.as_retriever(search_kwargs={"k": 3})
+            )
+
+            # Get relevant context from the vector store
+            context_response = await qa_chain.ainvoke({"query": last_user_message})
+            if context_response["result"]:
+                print(f"Context response (ui): {context_response['result']}")
+
             # Convert messages to LangChain message format
             langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]
             for msg in messages:
@@ -164,6 +222,10 @@ async def chat_handler():
                     langchain_messages.append(AIMessage(content=msg["content"]))
                 elif msg["role"] == "system":
                     langchain_messages.append(SystemMessage(content=msg["content"]))
+
+            # Add the retrieved context as a system message
+            if context_response["result"]:
+                langchain_messages.append(SystemMessage(content=f"Here is some relevant information from the movie database: {context_response['result']}"))
 
             # Stream the response
             full_response = ""
