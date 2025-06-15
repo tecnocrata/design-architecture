@@ -11,6 +11,7 @@ from quart import (
 )
 from .storage import InMemoryConversationStorage
 from langchain.schema import HumanMessage, SystemMessage, AIMessage
+from .config import SYSTEM_PROMPT
 
 # Define the Blueprint for the chat UI and API
 # It will look for templates in a 'templates' folder in the same directory as this blueprint.
@@ -65,7 +66,7 @@ async def get_conversation(conversation_id: str):
 async def chat_handler():
     """
     Handles chat requests from the client using Server-Sent Events (SSE).
-    Receives messages and an optional image, calls the LangChain API,
+    Receives messages and calls the LangChain API with RAG functionality,
     and streams the response back as SSE events.
     """
     chat_model = getattr(current_app, 'chat_model', None)
@@ -79,8 +80,6 @@ async def chat_handler():
 
     # For GET requests (SSE connection), we don't need to parse the request body
     if request.method == "GET":
-        # The actual chat request data should be stored in the session or passed via query parameters
-        # For now, we'll use query parameters
         conversation_id = request.args.get("conversation_id")
         if not conversation_id:
             return Response("data: {\"error\": \"Invalid request: 'conversation_id' is required.\"}\n\n", 
@@ -156,9 +155,8 @@ async def chat_handler():
         try:
             logger.debug(f"Messages to LangChain: {json.dumps(messages)[:500]}...")
 
-            full_response = ""
             # Convert messages to LangChain message format
-            langchain_messages = []
+            langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]
             for msg in messages:
                 if msg["role"] == "user":
                     langchain_messages.append(HumanMessage(content=msg["content"]))
@@ -167,6 +165,8 @@ async def chat_handler():
                 elif msg["role"] == "system":
                     langchain_messages.append(SystemMessage(content=msg["content"]))
 
+            # Stream the response
+            full_response = ""
             async for chunk in chat_model.astream(langchain_messages):
                 if chunk.content:
                     full_response += chunk.content
@@ -180,7 +180,7 @@ async def chat_handler():
                     yield f"data: {json.dumps(event_dict, ensure_ascii=False)}\n\n"
 
             # Store the complete assistant's reply after streaming is done
-            if full_response and request.method == "POST":
+            if request.method == "POST":
                 await storage.add_message(conversation_id, "assistant", full_response)
 
             # Send a final event to signal completion
