@@ -95,119 +95,116 @@ async def get_conversation(conversation_id: str):
         return jsonify({"error": "Failed to get conversation"}), 500
 
 @chat_ui_bp.post("/chat/stream")
-@chat_ui_bp.get("/chat/stream")
-async def chat_handler():
+async def handle_chat_post():
     """
-    Handles chat requests from the client using Server-Sent Events (SSE).
-    Receives messages and calls the LangChain API with RAG functionality,
-    and streams the response back as SSE events.
+    Handles POST requests for chat messages.
+    Receives messages, stores them, and returns a confirmation.
+    The actual SSE stream is handled by a separate GET endpoint.
     """
     chat_model = getattr(current_app, 'chat_model', None)
     model_name = getattr(current_app, 'model_name', None)
 
     if not chat_model or not model_name:
         logger.error("LangChain chat model or model name not configured on the current_app.")
+        return jsonify({"error": "Server configuration error."}), 500
+
+    if not vector_store:
+        logger.error("Vector store not initialized.")
+        return jsonify({"error": "Vector store not available."}), 500
+
+    try:
+        request_json = await request.get_json()
+        if not request_json:
+            logger.warning("Received empty JSON body for POST /chat/stream.")
+            return jsonify({"error": "Invalid request: No JSON body."}), 400
+    except Exception as e:
+        logger.error(f"Error parsing request JSON for POST /chat/stream: {e}")
+        return jsonify({"error": f"Invalid JSON format: {e}"}), 400
+
+    session_state = request_json.get("sessionState", {})
+    conversation_id = session_state.get("conversation_id")
+    if not conversation_id:
+        logger.warning("Missing 'conversation_id' in session_state for POST /chat/stream.")
+        return jsonify({"error": "Invalid request: 'conversation_id' is required in session_state."}), 400
+
+    request_messages = request_json.get("messages", [])
+    context_data = request_json.get("context", {})
+    image_base64_data_uri = context_data.get("file")
+    show_multimodal_features = current_app.config.get("SHOW_MULTIMODAL_FEATURES", False)
+
+    user_message_stored = False
+    if request_messages:
+        user_message_input = request_messages[-1]["content"]
+        user_message_content_to_store = ""
+
+        if isinstance(user_message_input, list):  # Multimodal content
+            user_message_content_to_store = next((part.get("text") for part in user_message_input if part.get("type") == "text"), "")
+            if not user_message_content_to_store and image_base64_data_uri and show_multimodal_features:
+                user_message_content_to_store = "[Image received]"
+        elif isinstance(user_message_input, str):  # Simple text content
+            user_message_content_to_store = user_message_input
+        
+        if user_message_content_to_store:
+            await storage.add_message(conversation_id, "user", user_message_content_to_store)
+            user_message_stored = True
+            logger.info(f"User message stored for conversation '{conversation_id}'.")
+        elif show_multimodal_features and image_base64_data_uri: 
+            # This case handles if user_message_input was a list, but only contained an image part,
+            # and image_base64_data_uri was also sent in context.
+            await storage.add_message(conversation_id, "user", "[Image received]")
+            user_message_stored = True
+            logger.info(f"User image placeholder (from multimodal list) stored for conversation '{conversation_id}'.")
+
+    elif show_multimodal_features and image_base64_data_uri: # Only image in context, no "messages" array or empty "messages"
+        await storage.add_message(conversation_id, "user", "[Image received]")
+        user_message_stored = True
+        logger.info(f"User image placeholder (from context) stored for conversation '{conversation_id}'.")
+    
+    if not user_message_stored:
+        logger.warning(f"No storable message content (text or image) found in POST /chat/stream for conversation '{conversation_id}'.")
+        return jsonify({"error": "No message content (text or image) provided in the request."}), 400
+
+    return jsonify({"status": "message_received", "conversation_id": conversation_id})
+
+@chat_ui_bp.get("/chat/stream")
+async def handle_chat_get_stream():
+    """
+    Handles GET requests for chat messages using Server-Sent Events (SSE).
+    Retrieves conversation history, calls the LangChain API with RAG,
+    and streams the response back as SSE events.
+    """
+    chat_model = getattr(current_app, 'chat_model', None)
+    model_name = getattr(current_app, 'model_name', None)
+
+    if not chat_model or not model_name:
+        logger.error("LangChain chat model or model name not configured for GET /chat/stream.")
         return Response("data: {\"error\": \"Server configuration error.\"}\n\n", 
                        status=500, 
                        content_type="text/event-stream")
 
     if not vector_store:
-        logger.error("Vector store not initialized.")
+        logger.error("Vector store not initialized for GET /chat/stream.")
         return Response("data: {\"error\": \"Vector store not available.\"}\n\n", 
                        status=500, 
                        content_type="text/event-stream")
 
-    if request.method == "GET":
-        conversation_id = request.args.get("conversation_id")
-        if not conversation_id:
-            return Response("data: {\"error\": \"Invalid request: 'conversation_id' is required.\"}\n\n", 
-                          status=400, 
-                          content_type="text/event-stream")
-        
-        # Get the messages from the conversation
-        conversation_messages = await storage.get_messages(conversation_id)
-        if not conversation_messages:
-            return Response("data: {\"error\": \"No messages found in conversation.\"}\n\n", 
-                          status=400, 
-                          content_type="text/event-stream")
-        
-        messages = conversation_messages
-    else:
-        # For POST requests, parse the JSON body
-        try:
-            request_json = await request.get_json()
-            if not request_json:
-                logger.warning("Received empty JSON body.")
-                return Response("data: {\"error\": \"Invalid request: No JSON body.\"}\n\n",
-                              status=400,
-                              content_type="text/event-stream")
-        except Exception as e:
-            logger.error(f"Error parsing request JSON: {e}")
-            return Response(f"data: {{\"error\": \"Invalid JSON format: {e}\"}}\n\n",
-                          status=400,
-                          content_type="text/event-stream")
-
-        session_state = request_json.get("sessionState", {})
-        logger.info(f"Session state: {session_state}")
-        conversation_id = session_state.get("conversation_id")
-        if not conversation_id:
-            return Response("data: {\"error\": \"Invalid request: 'conversation_id' is required in session_state.\"}\n\n",
-                          status=400,
-                          content_type="text/event-stream")
-
-        request_messages = request_json.get("messages", [])
-        context_data = request_json.get("context", {})
-        image_base64_data_uri = context_data.get("file")
-        show_multimodal_features = current_app.config.get("SHOW_MULTIMODAL_FEATURES", False)
-
-        # Store the user's message
-        if request_messages:
-            user_message_input = request_messages[-1]["content"]
-            user_message_content_to_store = ""
-
-            if isinstance(user_message_input, list):  # Multimodal content
-                # Extract text part for simple storage
-                user_message_content_to_store = next((part.get("text") for part in user_message_input if part.get("type") == "text"), "")
-                # If only image and no text, store a placeholder or handle as per app logic
-                if not user_message_content_to_store and image_base64_data_uri and show_multimodal_features:
-                    user_message_content_to_store = "[Image received]"
-            elif isinstance(user_message_input, str):  # Simple text content
-                user_message_content_to_store = user_message_input
-            
-            if user_message_content_to_store:
-                 await storage.add_message(conversation_id, "user", user_message_content_to_store)
-            elif show_multimodal_features and image_base64_data_uri: # Case: only image was sent, no text in request_messages[-1]["content"]
-                 await storage.add_message(conversation_id, "user", "[Image received]")
-            elif not request_messages:
-                logger.warning("No messages provided in the request to /chat endpoint for POST.")
-                # Potentially return error, or handle as image-only if image_base64_data_uri exists
-                if not image_base64_data_uri: # No text and no image
-                    return Response("data: {\"error\": \"No messages or image provided in the request.\"}\n\n",
-                                  status=400,
-                                  content_type="text/event-stream")
-
-        elif show_multimodal_features and image_base64_data_uri: # Only image, no "messages" array
-            await storage.add_message(conversation_id, "user", "[Image received]")
-        else:
-            logger.warning("No messages or image provided in the request to /chat endpoint for POST.")
-            return Response("data: {\"error\": \"No messages or image provided in the request.\"}\n\n",
-                          status=400,
-                          content_type="text/event-stream")
-
-        # For POST request, after storing the user's message,
-        # return a confirmation. The actual SSE stream
-        # will be handled by the subsequent GET request from EventSource.
-        return jsonify({"status": "message_received", "conversation_id": conversation_id})
+    conversation_id = request.args.get("conversation_id")
+    if not conversation_id:
+        logger.warning("Missing 'conversation_id' in GET /chat/stream request.")
+        return Response("data: {\"error\": \"Invalid request: 'conversation_id' is required.\"}\n\n", 
+                      status=400, 
+                      content_type="text/event-stream")
+    
+    messages = await storage.get_messages(conversation_id)
+    # sse_generator will handle if messages is None or empty.
 
     @stream_with_context
     async def sse_generator():
         try:
-            # 'messages' is populated by the GET request path before this generator is called
-            logger.debug(f"SSE Generator: Messages for LangChain: {json.dumps(messages)[:500]}...")
+            logger.debug(f"SSE Generator for '{conversation_id}': Starting. Messages count: {len(messages) if messages else 0}.")
 
-            # Get the last user message's text content for RAG query
             last_user_message_text_content = None
-            if messages:
+            if messages: # Ensure messages is not None and not empty
                 for msg in reversed(messages): # Iterate in reverse to find the last user message
                     if msg.get("role") == "user":
                         content = msg.get("content")
@@ -221,74 +218,84 @@ async def chat_handler():
                             break
             
             if not last_user_message_text_content:
-                logger.info("No text content found in the last user message for RAG query. Will proceed without RAG context if applicable.")
+                logger.info(f"No text content found in the last user message for RAG query (conversation '{conversation_id}'). Will proceed without RAG context if applicable.")
 
-            # Create a QA chain with the vector store
             qa_chain = RetrievalQA.from_chain_type(
                 llm=chat_model,
                 chain_type="stuff",
                 retriever=vector_store.as_retriever(search_kwargs={"k": 3})
             )
             
-            context_response = {"result": None} # Default if no RAG query
+            context_response_text = None
             if last_user_message_text_content: # Only query RAG if we have text
-                logger.info(f"Performing RAG query with: {last_user_message_text_content}")
-                context_response = await qa_chain.ainvoke({"query": last_user_message_text_content})
-                if context_response and "result" in context_response and context_response["result"]:
-                    logger.info(f"Context response (ui): {context_response['result']}")
+                logger.info(f"Performing RAG query for '{conversation_id}' with: '{last_user_message_text_content[:50]}...'")
+                try:
+                    # Use ainvoke for async compatibility
+                    context_response = await qa_chain.ainvoke({"query": last_user_message_text_content})
+                    if context_response and "result" in context_response and context_response["result"]:
+                        context_response_text = context_response["result"]
+                        logger.info(f"Context retrieved for '{conversation_id}'.")
+                    else:
+                        logger.info(f"No context retrieved for '{conversation_id}'.")
+                except Exception as rag_e:
+                    logger.error(f"RAG query failed for '{conversation_id}': {rag_e}", exc_info=True)
+                    # Optionally yield an error specific to RAG failure or just proceed without context
             else:
-                logger.info("Skipping RAG query as no last user text message content was found.")
+                logger.info(f"Skipping RAG query for '{conversation_id}' as no last user text message content was found.")
 
-            # Convert messages to LangChain message format
-            # 'messages' here are from storage.get_messages() in the GET path
             langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]
-            for msg in messages:
-                role = msg.get("role")
-                content = msg.get("content") # This can be string or list for multimodal
+            if messages: # Ensure messages is not None
+                for msg in messages:
+                    role = msg.get("role")
+                    content = msg.get("content") # This can be string or list for multimodal
 
-                if role == "user":
-                    # HumanMessage content can be a string or a list of content parts (text, image_url)
-                    langchain_messages.append(HumanMessage(content=content))
-                elif role == "assistant":
-                    langchain_messages.append(AIMessage(content=content))
-                elif role == "system":
-                    langchain_messages.append(SystemMessage(content=content))
+                    if role == "user":
+                        langchain_messages.append(HumanMessage(content=content))
+                    elif role == "assistant":
+                        langchain_messages.append(AIMessage(content=content))
 
-            # Add the retrieved context as a system message
-            if context_response and "result" in context_response and context_response["result"]:
-                langchain_messages.append(SystemMessage(content=f"Here is some relevant information from the movie database: {context_response['result']}"))
+            if context_response_text:
+                langchain_messages.append(SystemMessage(content=f"Here is some relevant information from the movie database: {context_response_text}"))
 
-            # Stream the response
             full_response = ""
             async for chunk in chat_model.astream(langchain_messages):
                 if chunk.content:
                     full_response += chunk.content
-                    # Format the response to match the expected SSE format
                     event_dict = {
                         "choices": [{
                             "delta": {"content": chunk.content},
-                            "finish_reason": None
+                            "finish_reason": None 
                         }]
                     }
                     yield f"data: {json.dumps(event_dict, ensure_ascii=False)}\n\n"
 
-            # Store the complete assistant's reply after streaming is done.
-            # 'conversation_id' is in scope from the outer chat_handler (from GET request).
-            if full_response: # Ensure there's a response to store
+            if full_response:
                 await storage.add_message(conversation_id, "assistant", full_response)
+                logger.info(f"Assistant response for '{conversation_id}' stored.")
+            else:
+                logger.info(f"No content generated by LLM for '{conversation_id}'.")
 
-            # Send a final event to signal completion
-            yield f"data: {json.dumps({'event': 'complete'}, ensure_ascii=False)}\n\n"
+            final_event_payload = {
+                "event": "complete", 
+                "conversation_id": conversation_id,
+                 # To mimic OpenAI, send a final choice with finish_reason
+                "choices": [{"delta": {}, "finish_reason": "stop"}]
+            }
+            yield f"data: {json.dumps(final_event_payload, ensure_ascii=False)}\n\n"
+            logger.info(f"SSE stream complete for conversation '{conversation_id}'.")
 
         except Exception as e:
-            logger.error(f"LangChain API call failed: {e}", exc_info=True)
+            logger.error(f"SSE generation failed for '{conversation_id}': {e}", exc_info=True)
             error_payload = {
                 "error": {
                     "message": str(e),
                     "type": type(e).__name__
                 }
             }
-            yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
+            try:
+                yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
+            except Exception as yield_e: # Catch errors during yielding the error itself
+                logger.error(f"Failed to yield error payload for '{conversation_id}': {yield_e}")
 
     return Response(
         sse_generator(),
