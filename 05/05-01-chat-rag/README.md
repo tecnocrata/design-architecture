@@ -22,3 +22,6 @@ gunicorn --config gunicorn.conf.py "myapp:create_app()"
 
 
 ## Design discussion
+- closed vs opened RAG
+- non tools implementation
+- why the closed RAG doesn't work?

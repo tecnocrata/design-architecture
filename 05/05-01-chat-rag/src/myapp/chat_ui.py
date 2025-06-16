@@ -234,7 +234,7 @@ async def handle_chat_get_stream():
                     context_response = await qa_chain.ainvoke({"query": last_user_message_text_content})
                     if context_response and "result" in context_response and context_response["result"]:
                         context_response_text = context_response["result"]
-                        logger.info(f"Context retrieved for '{conversation_id}'.")
+                        logger.info(f"Context retrieved for '{conversation_id}'. ... {context_response_text[:50]}...")
                     else:
                         logger.info(f"No context retrieved for '{conversation_id}'.")
                 except Exception as rag_e:
