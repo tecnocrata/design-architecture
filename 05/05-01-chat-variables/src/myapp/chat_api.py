@@ -6,11 +6,10 @@ from langchain.schema import HumanMessage, SystemMessage, AIMessage
 from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain.chains import RetrievalQA
-from langchain_openai import ChatOpenAI
 import os
-from .config import SYSTEM_PROMPT
+from .config import SYSTEM_PROMPT_TEMPLATE
 
 # Configure a logger for this blueprint
 logger = logging.getLogger(__name__)
@@ -87,38 +86,40 @@ async def handle_chat():
     try:
         logger.debug(f"Sending to LangChain (non-stream) for /api/chat: {messages}")
         
-        # Get the last user message
-        last_user_message = next((msg["content"] for msg in reversed(messages) if msg["role"] == "user"), None)
-        if not last_user_message:
+        last_user_message_content = next((msg["content"] for msg in reversed(messages) if msg["role"] == "user"), None)
+        if not last_user_message_content:
             return jsonify({"error": "No user message found in the conversation."}), 400
 
-        # Create a QA chain with the vector store
         qa_chain = RetrievalQA.from_chain_type(
             llm=chat_model,
             chain_type="stuff",
             retriever=vector_store.as_retriever(search_kwargs={"k": 3})
         )
 
-        # Get relevant context from the vector store
-        context_response = await qa_chain.ainvoke({"query": last_user_message})
-        if context_response["result"]:
-            print(f"Context response (api: {context_response['result']}")
+        context_response_text = ""
+        if last_user_message_content:
+            context_response = await qa_chain.ainvoke({"query": last_user_message_content})
+            if context_response and "result" in context_response and context_response["result"]:
+                context_response_text = context_response["result"]
+                logger.info(f"Context retrieved for /api/chat: {context_response_text[:100]}...")
+            else:
+                logger.info("No context retrieved for /api/chat.")
         
-        # Convert messages to LangChain message format
-        langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]
-        for msg in messages:
+        system_message_content = SYSTEM_PROMPT_TEMPLATE.format(
+            context=context_response_text or "",
+            question=last_user_message_content or ""
+        )
+        langchain_messages = [SystemMessage(content=system_message_content)]
+
+        # Add older messages from the history, excluding the current user query which is in the system prompt
+        for i, msg in enumerate(messages):
+            if i == len(messages) - 1 and msg["role"] == "user": # Skip last user message
+                continue
             if msg["role"] == "user":
                 langchain_messages.append(HumanMessage(content=msg["content"]))
             elif msg["role"] == "assistant":
                 langchain_messages.append(AIMessage(content=msg["content"]))
-            elif msg["role"] == "system":
-                langchain_messages.append(SystemMessage(content=msg["content"]))
-
-        # Add the retrieved context as a system message
-        if context_response["result"]:
-            langchain_messages.append(SystemMessage(content=f"Here is some relevant information from the movie database: {context_response['result']}"))
-
-        # Get response from LangChain
+        
         response = await chat_model.ainvoke(langchain_messages)
         return jsonify({"reply": response.content})
 
@@ -168,43 +169,46 @@ async def handle_chat_stream():
         try:
             logger.debug(f"Sending to LangChain (stream) for /api/chat-stream: {messages}")
             
-            # Get the last user message
-            last_user_message = next((msg["content"] for msg in reversed(messages) if msg["role"] == "user"), None)
-            if not last_user_message:
+            last_user_message_content = next((msg["content"] for msg in reversed(messages) if msg["role"] == "user"), None)
+            if not last_user_message_content:
                 error_response = {"error": "No user message found in the conversation."}
                 yield json.dumps(error_response) + "\n"
                 return
 
-            # Create a QA chain with the vector store
             qa_chain = RetrievalQA.from_chain_type(
                 llm=chat_model,
                 chain_type="stuff",
                 retriever=vector_store.as_retriever(search_kwargs={"k": 3})
             )
 
-            # Get relevant context from the vector store
-            context_response = await qa_chain.ainvoke({"query": last_user_message})
+            context_response_text = ""
+            if last_user_message_content:
+                context_response = await qa_chain.ainvoke({"query": last_user_message_content})
+                if context_response and "result" in context_response and context_response["result"]:
+                    context_response_text = context_response["result"]
+                    logger.info(f"Context retrieved for /api/chat-stream: {context_response_text[:100]}...")
+                else:
+                    logger.info("No context retrieved for /api/chat-stream.")
             
-            # Convert messages to LangChain message format
-            langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]
-            for msg in messages:
+            system_message_content = SYSTEM_PROMPT_TEMPLATE.format(
+                context=context_response_text or "",
+                question=last_user_message_content or ""
+            )
+            langchain_messages = [SystemMessage(content=system_message_content)]
+
+            # Add older messages from the history, excluding the current user query which is in the system prompt
+            for i, msg in enumerate(messages):
+                if i == len(messages) - 1 and msg["role"] == "user": # Skip last user message
+                    continue
                 if msg["role"] == "user":
                     langchain_messages.append(HumanMessage(content=msg["content"]))
                 elif msg["role"] == "assistant":
                     langchain_messages.append(AIMessage(content=msg["content"]))
-                elif msg["role"] == "system":
-                    langchain_messages.append(SystemMessage(content=msg["content"]))
 
-            # Add the retrieved context as a system message
-            if context_response["result"]:
-                langchain_messages.append(SystemMessage(content=f"Here is some relevant information from the movie database: {context_response['result']}"))
-
-            # Stream the response
             full_response = ""
             async for chunk in chat_model.astream(langchain_messages):
                 if chunk.content:
                     full_response += chunk.content
-                    # Format the response to match the expected SSE format
                     event_dict = {
                         "choices": [{
                             "delta": {"content": chunk.content},

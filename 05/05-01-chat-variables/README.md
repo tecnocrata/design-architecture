@@ -14,14 +14,12 @@ gunicorn --config gunicorn.conf.py "myapp:create_app()"
 ```
 
 ## Changes
-- chromadb and langchain for RAG implementation
-- config.py: SYSTEM_PROMPT centralized as agent system prompt
-- chat_api and chat_ui endpoints updated to support RAG context
-- chat_ui: initialize_vector_store
-- chat_ui: handle_chat_post and handle_chat_get_stream separation
+- config.py: prompt_template instead of string prompt
+- chat_ui: prompt_template used
+- chat_ui: vectore store added as context explicitly
+- chat_api: similar change added
 
 
 ## Design discussion
-- closed vs opened RAG
-- non tools implementation
-- why the closed RAG doesn't work?
+- what if more task are required?
+- the vectore store call is being hard coded before the llm invocation.
