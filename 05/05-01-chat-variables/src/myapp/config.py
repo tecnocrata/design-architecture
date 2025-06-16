@@ -1,13 +1,20 @@
+from langchain.prompts import PromptTemplate
 """
 Configuration and constants for the chat application.
 """
 
 # System prompt for the movie assistant
-SYSTEM_PROMPT = """You are a helpful movie assistant that has access to a database of movie information. 
-When answering questions about movies, use the information from the database to provide accurate and detailed responses.
-If you don't find relevant information in the database, you can still use your general knowledge about movies, but make it clear that you're not using the database information.
-Always maintain a conversational and helpful tone.""" 
-# SYSTEM_PROMPT = """You are a helpful movie assistant that has access to a database of movie information. 
-# When answering questions about movies, use the information from the database to provide accurate and detailed responses in you context.
-# If you don't find relevant information in the database, respond with "I don't have information about that in my documents" or "I can't answer that question based on the available information".
-# Always maintain a conversational and helpful tone.""" 
+SYSTEM_PROMPT = """You are a helpful movie assistant. Answer ONLY using the information provided in the Context below. If the answer is not in the Context, respond strictly with: 'I don't have information about that in my documents.' Do not use your general knowledge.\n\nContext: {context}\nQuestion: {question}\n"""
+
+SYSTEM_PROMPT_TEMPLATE = PromptTemplate(
+    input_variables=["context", "question"],
+    template=SYSTEM_PROMPT,
+)
+
+# The vector store prompt is only used for retrieval, so it can be simple.
+VECTORE_STORE_PROMPT = """Given the following question, retrieve relevant movie information from the database.\n\nQuestion: {question}\n"""
+
+VECTORE_STORE_PROMPT_TEMPLATE = PromptTemplate(
+    input_variables=["question"],
+    template=VECTORE_STORE_PROMPT,
+)

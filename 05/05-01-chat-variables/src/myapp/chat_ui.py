@@ -18,7 +18,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain.chains import RetrievalQA
 from langchain_openai import ChatOpenAI
 import os
-from .config import SYSTEM_PROMPT
+from .config import SYSTEM_PROMPT_TEMPLATE, VECTORE_STORE_PROMPT_TEMPLATE
 
 # Define the Blueprint for the chat UI and API
 # It will look for templates in a 'templates' folder in the same directory as this blueprint.
@@ -226,7 +226,7 @@ async def handle_chat_get_stream():
                 retriever=vector_store.as_retriever(search_kwargs={"k": 3})
             )
             
-            context_response_text = None
+            context_response_text = ""
             if last_user_message_text_content: # Only query RAG if we have text
                 logger.info(f"Performing RAG query for '{conversation_id}' with: '{last_user_message_text_content[:50]}...'")
                 try:
@@ -243,7 +243,12 @@ async def handle_chat_get_stream():
             else:
                 logger.info(f"Skipping RAG query for '{conversation_id}' as no last user text message content was found.")
 
-            langchain_messages = [SystemMessage(content=SYSTEM_PROMPT)]
+            # Build the system message using the SYSTEM_PROMPT_TEMPLATE and inject context/question
+            system_message_content = SYSTEM_PROMPT_TEMPLATE.format(
+                context=context_response_text or "",
+                question=last_user_message_text_content or ""
+            )
+            langchain_messages = [SystemMessage(content=system_message_content)]
             if messages: # Ensure messages is not None
                 for msg in messages:
                     role = msg.get("role")
@@ -253,9 +258,6 @@ async def handle_chat_get_stream():
                         langchain_messages.append(HumanMessage(content=content))
                     elif role == "assistant":
                         langchain_messages.append(AIMessage(content=content))
-
-            if context_response_text:
-                langchain_messages.append(SystemMessage(content=f"Here is some relevant information from the movie database: {context_response_text}"))
 
             full_response = ""
             async for chunk in chat_model.astream(langchain_messages):
