@@ -1,0 +1,8 @@
+[build-system]
+requires = ["flit_core >=3.11,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "MyApp"
+authors = [{name = "Enrique Ortuno", email = "enrique@ortuno.net"}]
+dynamic = ["version", "description"]
