@@ -14,6 +14,11 @@ gunicorn --config gunicorn.conf.py "myapp:create_app()"
 ```
 
 ## Changes
+- chromadb and langchain for RAG implementation
+- config.py: SYSTEM_PROMPT centralized as agent system prompt
+- chat_api and chat_ui endpoints updated to support RAG context
+- chat_ui: initialize_vector_store
+- chat_ui: handle_chat_post and handle_chat_get_stream separation
 
 
 ## Design discussion
