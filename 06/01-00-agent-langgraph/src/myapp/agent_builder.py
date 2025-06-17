@@ -65,7 +65,6 @@ def create_agent_graph(chat_model: ChatOpenAI, tools: list):
 
             # If the agent wants to use a tool, run the tool and add the result as a ToolMessage
             if getattr(response, "tool_calls", None):
-                tool_messages = []
                 for tool_call in response.tool_calls:
                     tool_name = tool_call["name"]
                     tool_input = tool_call["args"]
@@ -74,22 +73,28 @@ def create_agent_graph(chat_model: ChatOpenAI, tools: list):
                         tool_output = f"Tool '{tool_name}' not found."
                     else:
                         tool_output = await tool.ainvoke(tool_input)
+                    logger.info(f"Tool '{tool_name}' invoked with input: {tool_input}. Output: {tool_output}")
                     tool_message = ToolMessage(
                         content=tool_output,
                         tool_call_id=tool_call["id"]
                     )
-                    tool_messages.append(tool_message)
                     updated_history.append(tool_message)
-                # Now, call the LLM again with the full sequence
-                messages_for_second_call = messages + [response] + tool_messages
-                response2 = await llm_with_tools.ainvoke(messages_for_second_call)
-                updated_history.append(response2)
-                return {
-                    "agent_outcome": response2,
-                    "input": "",
-                    "chat_history": updated_history,
-                    "messages": updated_history
-                }
+                    # For the final LLM call, provide system prompt, last user message, AIMessage (with tool_calls), and tool result
+                    messages_for_final = [
+                        SystemMessage(content=AGENT_SYSTEM_PROMPT),
+                        HumanMessage(content=state["input"]),
+                        response,  # AIMessage with tool_calls
+                        tool_message
+                    ]
+                    response2 = await llm_with_tools.ainvoke(messages_for_final)
+                    logger.info(f"Final response after tool execution: {str(response2.content)[:100]}")
+                    updated_history.append(response2)
+                    return {
+                        "agent_outcome": response2,
+                        "input": "",
+                        "chat_history": updated_history,
+                        "messages": updated_history
+                    }
 
             # If no tool calls, just return the response
             return {

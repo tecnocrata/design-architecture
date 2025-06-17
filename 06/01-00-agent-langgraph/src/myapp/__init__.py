@@ -18,7 +18,7 @@ def create_app():
     if os.getenv("RUNNING_IN_PRODUCTION"):
         logging.basicConfig(level=logging.WARNING)
     else:
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.INFO)
 
     from . import chat_api
     from . import chat_ui
