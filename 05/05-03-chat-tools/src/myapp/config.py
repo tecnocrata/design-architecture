@@ -3,18 +3,12 @@ from langchain.prompts import PromptTemplate
 Configuration and constants for the chat application.
 """
 
-# System prompt for the movie assistant
-SYSTEM_PROMPT = """You are a helpful movie assistant. Answer ONLY using the information provided in the Context below. If the answer is not in the Context, respond strictly with: 'I don't have information about that in my documents.' Do not use your general knowledge.\n\nContext: {context}\nQuestion: {question}\n"""
+# System prompt for the movie assistant AGENT
+AGENT_SYSTEM_PROMPT = """You are a helpful movie assistant.
+Answer questions based on your knowledge and the available tools.
+If you use the 'movie_database_search' tool and it returns information, base your answer on that.
+If the tool returns no relevant information or you cannot find an answer using it, respond strictly with: 'I don't have information about that in my documents.'
+Do not use your general knowledge outside of the tool's results for movie-specific questions."""
 
-SYSTEM_PROMPT_TEMPLATE = PromptTemplate(
-    input_variables=["context", "question"],
-    template=SYSTEM_PROMPT,
-)
-
-# The vector store prompt is only used for retrieval, so it can be simple.
-VECTORE_STORE_PROMPT = """Given the following question, retrieve relevant movie information from the database.\n\nQuestion: {question}\n"""
-
-VECTORE_STORE_PROMPT_TEMPLATE = PromptTemplate(
-    input_variables=["question"],
-    template=VECTORE_STORE_PROMPT,
-)
+# The old SYSTEM_PROMPT and SYSTEM_PROMPT_TEMPLATE for direct RAG are no longer primary.
+# You might keep them for reference or remove if fully transitioning to agent.

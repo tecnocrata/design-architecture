@@ -14,12 +14,15 @@ gunicorn --config gunicorn.conf.py "myapp:create_app()"
 ```
 
 ## Changes
-- config.py: prompt_template instead of string prompt
-- chat_ui: prompt_template used
-- chat_ui: vectore store added as context explicitly
-- chat_api: similar change added
-
+- chat bot to agent transition
+- config.py: Prompt changed to agentic styled prompt. The 'movie_database_search' is being referenced.
+- init.py: agent_executor and vector_store_retriever definitions
+- tools.py: tools definition placeholder
+- tools.py: get_movie_retriever_tool returns the 'movie_database_search' tool
+- tools.py: movie_database_search retrieves documents from the vectore store
+- vectore_store_manager: defines the initialize_vector_store method
 
 ## Design discussion
-- what if more task are required?
-- the vectore store call is being hard coded before the llm invocation.
+- agent_executor
+- extensible tooling feature.
+- non complex agents

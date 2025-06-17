@@ -10,18 +10,9 @@ from quart import (
     jsonify,
 )
 from .storage import InMemoryConversationStorage
-from langchain.schema import HumanMessage, SystemMessage, AIMessage
-from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma
-from langchain_openai import OpenAIEmbeddings
-from langchain.chains import RetrievalQA
-from langchain_openai import ChatOpenAI
-import os
-from .config import SYSTEM_PROMPT_TEMPLATE, VECTORE_STORE_PROMPT_TEMPLATE
+from langchain.schema import HumanMessage, AIMessage
 
 # Define the Blueprint for the chat UI and API
-# It will look for templates in a 'templates' folder in the same directory as this blueprint.
 chat_ui_bp = Blueprint(
     "chat_ui", __name__, template_folder="templates"
 )
@@ -31,32 +22,6 @@ logger = logging.getLogger(__name__)
 
 # Initialize storage
 storage = InMemoryConversationStorage()
-
-def initialize_vector_store():
-    """Initialize the vector store with movie data."""
-    try:
-        # Load the movies text file
-        loader = TextLoader("src/myapp/movies.txt", encoding="utf-8")
-        documents = loader.load()
-
-        # Split the text into chunks
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        docs = text_splitter.split_documents(documents)
-
-        # Initialize embeddings
-        embeddings = OpenAIEmbeddings(
-            openai_api_key=os.getenv("OPENAI_KEY"),
-            model="text-embedding-3-small"
-        )
-
-        # Create and return the vector store
-        return Chroma.from_documents(docs, embeddings)
-    except Exception as e:
-        logger.error(f"Error initializing vector store: {e}")
-        return None
-
-# Initialize vector store when the blueprint is created
-vector_store = initialize_vector_store()
 
 @chat_ui_bp.route("/")
 async def index():
@@ -100,18 +65,8 @@ async def handle_chat_post():
     Handles POST requests for chat messages.
     Receives messages, stores them, and returns a confirmation.
     The actual SSE stream is handled by a separate GET endpoint.
+    Agent/LLM interaction does NOT happen here.
     """
-    chat_model = getattr(current_app, 'chat_model', None)
-    model_name = getattr(current_app, 'model_name', None)
-
-    if not chat_model or not model_name:
-        logger.error("LangChain chat model or model name not configured on the current_app.")
-        return jsonify({"error": "Server configuration error."}), 500
-
-    if not vector_store:
-        logger.error("Vector store not initialized.")
-        return jsonify({"error": "Vector store not available."}), 500
-
     try:
         request_json = await request.get_json()
         if not request_json:
@@ -149,13 +104,11 @@ async def handle_chat_post():
             user_message_stored = True
             logger.info(f"User message stored for conversation '{conversation_id}'.")
         elif show_multimodal_features and image_base64_data_uri: 
-            # This case handles if user_message_input was a list, but only contained an image part,
-            # and image_base64_data_uri was also sent in context.
             await storage.add_message(conversation_id, "user", "[Image received]")
             user_message_stored = True
             logger.info(f"User image placeholder (from multimodal list) stored for conversation '{conversation_id}'.")
 
-    elif show_multimodal_features and image_base64_data_uri: # Only image in context, no "messages" array or empty "messages"
+    elif show_multimodal_features and image_base64_data_uri: 
         await storage.add_message(conversation_id, "user", "[Image received]")
         user_message_stored = True
         logger.info(f"User image placeholder (from context) stored for conversation '{conversation_id}'.")
@@ -170,22 +123,15 @@ async def handle_chat_post():
 async def handle_chat_get_stream():
     """
     Handles GET requests for chat messages using Server-Sent Events (SSE).
-    Retrieves conversation history, calls the LangChain API with RAG,
+    Retrieves conversation history, uses the AgentExecutor to get a response,
     and streams the response back as SSE events.
     """
-    chat_model = getattr(current_app, 'chat_model', None)
-    model_name = getattr(current_app, 'model_name', None)
+    agent_executor = getattr(current_app, 'agent_executor', None)
 
-    if not chat_model or not model_name:
-        logger.error("LangChain chat model or model name not configured for GET /chat/stream.")
-        return Response("data: {\"error\": \"Server configuration error.\"}\n\n", 
-                       status=500, 
-                       content_type="text/event-stream")
-
-    if not vector_store:
-        logger.error("Vector store not initialized for GET /chat/stream.")
-        return Response("data: {\"error\": \"Vector store not available.\"}\n\n", 
-                       status=500, 
+    if not agent_executor:
+        logger.error("Agent Executor not configured for GET /chat/stream.")
+        return Response("data: {\"error\": \"Server agent not available.\"}\n\n",
+                       status=500,
                        content_type="text/event-stream")
 
     conversation_id = request.args.get("conversation_id")
@@ -196,115 +142,76 @@ async def handle_chat_get_stream():
                       content_type="text/event-stream")
     
     messages = await storage.get_messages(conversation_id)
-    # sse_generator will handle if messages is None or empty.
 
     @stream_with_context
     async def sse_generator():
         try:
-            logger.debug(f"SSE Generator for '{conversation_id}': Starting. Messages count: {len(messages) if messages else 0}.")
+            logger.debug(f"SSE Agent Generator for '{conversation_id}': Starting. Messages count: {len(messages) if messages else 0}.")
 
             last_user_message_text_content = None
-            if messages: # Ensure messages is not None and not empty
-                for msg in reversed(messages): # Iterate in reverse to find the last user message
-                    if msg.get("role") == "user":
-                        content = msg.get("content")
-                        if isinstance(content, list):  # Multimodal content
-                            text_part = next((part.get("text") for part in content if part.get("type") == "text"), None)
-                            if text_part: # Prioritize text part for RAG
-                                last_user_message_text_content = text_part
-                                break
-                        elif isinstance(content, str):  # Simple text content
-                            last_user_message_text_content = content
-                            break
-            
-            if not last_user_message_text_content:
-                logger.info(f"No text content found in the last user message for RAG query (conversation '{conversation_id}'). Will proceed without RAG context if applicable.")
+            chat_history_for_agent = []
 
-            qa_chain = RetrievalQA.from_chain_type(
-                llm=chat_model,
-                chain_type="stuff",
-                retriever=vector_store.as_retriever(search_kwargs={"k": 3})
-            )
-            
-            context_response_text = ""
-            if last_user_message_text_content: # Only query RAG if we have text
-                logger.info(f"Performing RAG query for '{conversation_id}' with: '{last_user_message_text_content[:50]}...'")
-                try:
-                    # Use ainvoke for async compatibility
-                    context_response = await qa_chain.ainvoke({"query": last_user_message_text_content})
-                    if context_response and "result" in context_response and context_response["result"]:
-                        context_response_text = context_response["result"]
-                        logger.info(f"Context retrieved for '{conversation_id}'. ... {context_response_text[:50]}...")
-                    else:
-                        logger.info(f"No context retrieved for '{conversation_id}'.")
-                except Exception as rag_e:
-                    logger.error(f"RAG query failed for '{conversation_id}': {rag_e}", exc_info=True)
-                    # Optionally yield an error specific to RAG failure or just proceed without context
-            else:
-                logger.info(f"Skipping RAG query for '{conversation_id}' as no last user text message content was found.")
-
-            # Build the system message using the SYSTEM_PROMPT_TEMPLATE and inject context/question
-            system_message_content = SYSTEM_PROMPT_TEMPLATE.format(
-                context=context_response_text or "",
-                question=last_user_message_text_content or ""
-            )
-            langchain_messages = [SystemMessage(content=system_message_content)]
-            if messages: # Ensure messages is not None
-                for msg in messages:
+            if messages: 
+                for i, msg in enumerate(messages):
                     role = msg.get("role")
-                    content = msg.get("content") # This can be string or list for multimodal
+                    content = msg.get("content")
 
                     if role == "user":
-                        langchain_messages.append(HumanMessage(content=content))
+                        chat_history_for_agent.append(HumanMessage(content=content))
+                        if i == len(messages) - 1: 
+                            if isinstance(content, list):  
+                                text_part = next((part.get("text") for part in content if part.get("type") == "text"), None)
+                                if text_part:
+                                    last_user_message_text_content = text_part
+                            elif isinstance(content, str):  
+                                last_user_message_text_content = content
                     elif role == "assistant":
-                        langchain_messages.append(AIMessage(content=content))
+                        chat_history_for_agent.append(AIMessage(content=content))
+            
+            if not last_user_message_text_content:
+                logger.warning(f"No last user message text content found for agent input (conversation '{conversation_id}').")
+                yield f"data: {json.dumps({'error': 'No user input to process.'}, ensure_ascii=False)}\n\n"
+                final_error_event = {"event": "error", "conversation_id": conversation_id, "message": "No user input."}
+                yield f"data: {json.dumps(final_error_event, ensure_ascii=False)}\n\n"
+                return
 
+            # Remove the last user message from history if it's the same as the input, to avoid duplication
+            if chat_history_for_agent and isinstance(chat_history_for_agent[-1], HumanMessage) and chat_history_for_agent[-1].content == last_user_message_text_content:
+                chat_history_for_agent = chat_history_for_agent[:-1]
+
+            logger.info(f"Invoking agent for '{conversation_id}' with input: '{last_user_message_text_content[:100]}...'")
+            
             full_response = ""
-            async for chunk in chat_model.astream(langchain_messages):
-                if chunk.content:
-                    full_response += chunk.content
-                    event_dict = {
-                        "choices": [{
-                            "delta": {"content": chunk.content},
-                            "finish_reason": None 
-                        }]
-                    }
-                    yield f"data: {json.dumps(event_dict, ensure_ascii=False)}\n\n"
+            async for chunk_dict in agent_executor.astream(
+                {"input": last_user_message_text_content, "chat_history": chat_history_for_agent}
+            ):
+                if "output" in chunk_dict and isinstance(chunk_dict["output"], str):
+                    content_piece = chunk_dict["output"]
+                    if content_piece: # Ensure content_piece is not empty
+                        full_response += content_piece
+                        event_data = {
+                            "choices": [{
+                                "delta": {"content": content_piece},
+                                "finish_reason": None 
+                            }]
+                        }
+                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
             if full_response:
                 await storage.add_message(conversation_id, "assistant", full_response)
-                logger.info(f"Assistant response for '{conversation_id}' stored.")
+                logger.info(f"SSE stream complete for conv '{conversation_id}'. Full response stored.")
             else:
-                logger.info(f"No content generated by LLM for '{conversation_id}'.")
+                logger.info(f"SSE stream complete for conv '{conversation_id}'. No response content generated by agent.")
 
-            final_event_payload = {
-                "event": "complete", 
-                "conversation_id": conversation_id,
-                 # To mimic OpenAI, send a final choice with finish_reason
-                "choices": [{"delta": {}, "finish_reason": "stop"}]
-            }
-            yield f"data: {json.dumps(final_event_payload, ensure_ascii=False)}\n\n"
-            logger.info(f"SSE stream complete for conversation '{conversation_id}'.")
+            # Send a final event indicating the end of the stream
+            final_event = {"event": "end", "conversation_id": conversation_id}
+            yield f"data: {json.dumps(final_event, ensure_ascii=False)}\n\n"
 
         except Exception as e:
-            logger.error(f"SSE generation failed for '{conversation_id}': {e}", exc_info=True)
-            error_payload = {
-                "error": {
-                    "message": str(e),
-                    "type": type(e).__name__
-                }
-            }
-            try:
-                yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
-            except Exception as yield_e: # Catch errors during yielding the error itself
-                logger.error(f"Failed to yield error payload for '{conversation_id}': {yield_e}")
+            logger.error(f"Error during SSE generation for conversation '{conversation_id}': {e}", exc_info=True)
+            error_event = {"error": str(e), "conversation_id": conversation_id}
+            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+            final_error_event = {"event": "error", "conversation_id": conversation_id, "message": str(e)}
+            yield f"data: {json.dumps(final_error_event, ensure_ascii=False)}\n\n"
 
-    return Response(
-        sse_generator(),
-        content_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # Disable proxy buffering
-        }
-    )
+    return Response(sse_generator(), content_type='text/event-stream')
