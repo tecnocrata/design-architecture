@@ -67,8 +67,13 @@ async def _initialize_langchain_resources():
         if vector_store:
             current_app.vector_store = vector_store
             logger.info("Chroma vector store initialized via vector_store_manager.")
-            retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+            # retriever = vector_store.as_retriever(search_kwargs={"k": 3}) # DON'T DELETE THIS LINE
+            retriever = vector_store.as_retriever(
+                search_type="similarity_score_threshold",
+                search_kwargs={"k": 3, "score_threshold": 0.01}  # Adjusted threshold
+            )
             current_app.vector_store_retriever = retriever
+            logger.info(f"Retriever initialized with search_type='similarity_score_threshold' and score_threshold=0.01, k=3.")
         else:
             logger.warning("Chroma vector store initialization failed. See previous errors from vector_store_manager.")
             current_app.vector_store = None
