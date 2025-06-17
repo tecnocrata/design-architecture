@@ -1,0 +1,129 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: #e9ecef; /* Lighter gray for background */
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Modern font */
+}
+
+#messages .toast-container {
+  margin-bottom: 1rem; /* Consistent spacing */
+}
+
+#messages .toast {
+  border: none; /* Remove default toast border */
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.05); /* Softer shadow */
+}
+
+#messages .message-file img {
+  max-width: 100%;
+  max-height: 350px; /* Slightly reduced max height */
+  border-radius: 0.25rem; /* Rounded corners for images */
+}
+
+.background-user {
+  background-color: #007bff; /* Bootstrap primary blue */
+  color: white;
+}
+
+.background-assistant {
+  background-color: #6c757d; /* Bootstrap secondary gray */
+  color: white;
+}
+
+#messages .toast-header {
+  border-bottom: none; /* Remove border from header */
+}
+
+#messages .toast-body {
+  background-color: #fff; /* White background for message body */
+  color: #212529; /* Darker text for readability */
+}
+
+#image-preview {
+  max-height: 120px; /* Reduced size for preview */
+  float: right;
+  margin-left: 1rem;
+  border: 1px solid #dee2e6; /* Light border for preview */
+  border-radius: 0.25rem;
+}
+
+#no-messages-heading {
+  margin-top: 20%;
+  color: #6c757d; /* Softer color for placeholder text */
+}
+
+#chat-area {
+  background-color: #f8f9fa; /* Light gray for chat input area */
+  border-top: 1px solid #dee2e6; /* Subtle top border */
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+#chat-form label {
+  color: #495057 !important; /* Darker label color, overriding inline style */
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+#chat-form .form-control {
+  border-radius: 0.25rem; /* Rounded input fields */
+}
+
+#chat-form .btn-primary {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+#chat-form .btn-primary:hover {
+  background-color: #0056b3;
+  border-color: #0056b3;
+}
+
+/* Speech input/output buttons */
+
+#chat-form speech-input-button button,
+#chat-form speech-output-button button {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-color: #ced4da; /* Match form control border */
+}
+
+speech-input-button button.speech-input-active,
+speech-output-button button.speech-output-active {
+  border: 1px solid #007bff;
+  color: #007bff;
+  animation: pulse 1.5s infinite; /* Slightly slower pulse */
+}
+
+speech-input-button button.speech-input-active i,
+speech-output-button button.speech-output-active i { /* Target icon specifically */
+  color: #007bff;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(0, 123, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+  }
+}
+
+/* Ensure icons in toast headers are visible on new backgrounds */
+.toast-header .bi {
+    color: white !important; 
+}
+
+/* Adjustments for speech output button if it's inside a message */
+.message-content speech-output-button button {
+    margin-left: 0.5rem; /* Add some space if it's next to text */
+    padding: 0.25rem 0.5rem; /* Smaller padding */
+    font-size: 0.875rem; /* Smaller font */
+}
