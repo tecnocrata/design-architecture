@@ -10,9 +10,9 @@ Hypercorn==0.17.3
 hyperframe==6.1.0
 itsdangerous==2.2.0
 Jinja2==3.1.6
-langchain>=0.1.0
-langchain-openai>=0.0.8
-langchain-community>=0.0.27
+langchain-core>=0.1.52 # Ensure compatibility
+langchain-openai>=0.1.8 # Ensure compatibility
+langgraph>=0.0.57 # Latest as of mid-June 2025
 chromadb>=0.5.0 # Updated from 0.4.24
 MarkupSafe==3.0.2
 priority==2.0.0

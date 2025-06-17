@@ -276,6 +276,11 @@
                     };
 
                     eventSource.onmessage = function(event) {
+                        console.log('SSE message received:', event.data);
+                        if (isConnectionClosed) {
+                            console.warn('SSE connection is already closed, ignoring message');
+                            return;
+                        }
                         const data = JSON.parse(event.data);
                         
                         if (data.error) {

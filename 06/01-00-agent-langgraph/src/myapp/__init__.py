@@ -4,14 +4,13 @@ import os
 from dotenv import load_dotenv
 from quart import Quart, current_app
 from langchain_openai import ChatOpenAI
-from langchain.agents import AgentExecutor, create_openai_tools_agent
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from .chat_ui import chat_ui_bp
 from .chat_api import chat_api_bp
-from .config import AGENT_SYSTEM_PROMPT
 from .tools import get_all_tools
 from .vector_store_manager import initialize_vector_store as init_chroma_vector_store
+from .agent_builder import create_agent_graph
+from .storage import ConversationStorage, InMemoryConversationStorage
 
 def create_app():
     # We do this here in addition to gunicorn.conf.py, since we don't always use gunicorn
@@ -19,7 +18,7 @@ def create_app():
     if os.getenv("RUNNING_IN_PRODUCTION"):
         logging.basicConfig(level=logging.WARNING)
     else:
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=logging.DEBUG)
 
     from . import chat_api
     from . import chat_ui
@@ -43,12 +42,11 @@ def create_app():
 async def _initialize_langchain_resources():
     """Initializes Langchain resources before the app starts serving.
     This includes loading API keys, initializing the ChatOpenAI model,
-    the vector store, and the agent executor.
+    the vector store, tools, and the LangGraph agent.
     """
     logger = logging.getLogger("quart.app")
-    logger.info("Initializing Langchain resources...")
+    logger.info("Initializing Langchain and LangGraph resources...")
 
-    # Load environment variables (especially OPENAI_KEY)
     load_dotenv()
     api_key = os.getenv("OPENAI_KEY")
     if not api_key:
@@ -56,68 +54,61 @@ async def _initialize_langchain_resources():
         return
 
     try:
+        # Initialize Conversation Storage
+        current_app.conversation_storage = InMemoryConversationStorage()
+        logger.info("InMemoryConversationStorage initialized.")
+
         # Initialize ChatOpenAI model
         chat_model = ChatOpenAI(model="gpt-4", temperature=0, streaming=True, api_key=api_key)
         current_app.chat_model = chat_model
         logger.info("ChatOpenAI model initialized.")
 
-        # Initialize Chroma vector store using the new manager
-        # Pass the API key needed for OpenAIEmbeddings within initialize_vector_store
+        # Initialize Chroma vector store
         vector_store = init_chroma_vector_store(embeddings_api_key=api_key)
         if vector_store:
             current_app.vector_store = vector_store
-            logger.info("Chroma vector store initialized via vector_store_manager.")
-            # retriever = vector_store.as_retriever(search_kwargs={"k": 3}) # DON'T DELETE THIS LINE
+            logger.info("Chroma vector store initialized.")
             retriever = vector_store.as_retriever(
                 search_type="similarity_score_threshold",
-                search_kwargs={"k": 3, "score_threshold": 0.01}  # Adjusted threshold
+                search_kwargs={"k": 3, "score_threshold": 0.01}
             )
             current_app.vector_store_retriever = retriever
-            logger.info(f"Retriever initialized with search_type='similarity_score_threshold' and score_threshold=0.01, k=3.")
+            logger.info("Retriever initialized.")
         else:
-            logger.warning("Chroma vector store initialization failed. See previous errors from vector_store_manager.")
+            logger.warning("Chroma vector store initialization failed.")
             current_app.vector_store = None
             current_app.vector_store_retriever = None
 
         # Initialize tools
-        tools = get_all_tools(current_app.vector_store_retriever) # Pass the retriever to the tool function
+        tools = get_all_tools(current_app.vector_store_retriever)
         current_app.tools = tools
-        logger.info(f"Tools initialized: {len(tools)} tool(s) loaded.")
+        logger.info(f"Tools initialized: {len(tools)} tool(s) loaded: {[tool.name for tool in tools]}.")
 
-        # Create Agent Prompt Template
-        agent_prompt_template = ChatPromptTemplate.from_messages(
-            [
-                ("system", AGENT_SYSTEM_PROMPT),
-                MessagesPlaceholder(variable_name="chat_history", optional=True),
-                ("human", "{input}"),
-                MessagesPlaceholder(variable_name="agent_scratchpad"),
-            ]
-        )
-        current_app.agent_prompt_template = agent_prompt_template
-        logger.info("Agent prompt template created.")
-
-        # Create Agent
+        # Create and compile the LangGraph Agent
         if not current_app.chat_model:
-            logger.error("Chat model not available for agent creation.")
+            logger.error("Chat model not available for agent graph creation.")
             return
-        # Agent can be created with an empty list of tools if retriever failed
-        agent = create_openai_tools_agent(current_app.chat_model, current_app.tools or [], agent_prompt_template)
-        current_app.agent = agent
-        logger.info("Agent created.")
+        
+        compiled_graph = create_agent_graph(current_app.chat_model, current_app.tools or [])
+        current_app.compiled_graph = compiled_graph
+        logger.info("LangGraph agent created and compiled.")
 
-        # Create Agent Executor
-        agent_executor = AgentExecutor(agent=agent, tools=current_app.tools or [], verbose=True) # Set verbose=False for production
-        current_app.agent_executor = agent_executor
-        logger.info("Agent Executor created and ready.")
+        # Remove old agent executor if it exists
+        if hasattr(current_app, 'agent_executor'):
+            delattr(current_app, 'agent_executor')
+            logger.info("Removed old 'agent_executor' from current_app.")
 
     except Exception as e:
-        logger.error(f"Error during Langchain resource initialization: {e}", exc_info=True)
+        logger.error(f"Error during Langchain/LangGraph resource initialization: {e}", exc_info=True)
 
 async def _cleanup_langchain_resources():
-    """Shuts down the LangChain chat model if it exists on current_app."""
+    """Cleans up resources."""
+    logger = logging.getLogger("quart.app")
+    logger.info("Cleaning up resources...")
     if hasattr(current_app, 'chat_model'):
-        current_app.logger.info("Cleaning up LangChain chat model.")
-        # LangChain models don't require explicit cleanup
         delattr(current_app, 'chat_model')
-    else:
-        current_app.logger.info("No LangChain chat model to clean up.")
+    if hasattr(current_app, 'compiled_graph'):
+        delattr(current_app, 'compiled_graph')
+    if hasattr(current_app, 'conversation_storage'):
+        delattr(current_app, 'conversation_storage')
+    logger.info("Resources cleaned up.")
